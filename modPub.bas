@@ -15,17 +15,19 @@ Option Explicit
 
 Private Declare Function SystemParametersInfo Lib "user32" Alias "SystemParametersInfoA" (ByVal uAction As Long, ByVal uParam As Long, ByVal lpvParam As Any, ByVal fuWinIni As Long) As Long
 Private Declare Function InternetCheckConnection Lib "wininet.dll" Alias "InternetCheckConnectionA" (ByVal lpszUrl As String, ByVal dwFlags As Long, ByVal dwReserved As Long) As Long
-Private Declare Sub Sleep Lib "kernel32" (ByVal dwMilliseconds As Long)
+Private Declare Function timeGetTime Lib "winmm.dll" () As Long
 
 Dim strWallPaperLocal As String
 Const BING_PICTURE_DIR = "D:\Bing\" '壁纸保存目录
+Dim isHasUpdated As Boolean
 
 Sub Main()
     App.TaskVisible = False
     If App.PrevInstance Then
         MsgBox "该程序已经在后台运行中了，请勿重复运行！", vbExclamation
     Else
-        MsgBox "请点击“确定”，程序会在后台自动到必应上每日更新壁纸并设置到您的电脑桌面上", vbInformation
+        Wait 30000
+'        If Command <> "silent" Then MsgBox "请点击“确定”，程序会在后台自动到必应上每日更新壁纸并设置到您的电脑桌面上", vbInformation
         Do
             If Dir(BING_PICTURE_DIR, vbDirectory) = "" Then MkDir BING_PICTURE_DIR
             strWallPaperLocal = BING_PICTURE_DIR & Format(Now, "yyyymmdd") & ".jpg"
@@ -33,11 +35,21 @@ Sub Main()
                 writeToFile "运行日志.txt", Now & vbTab & "发现目标文件" & strWallPaperLocal & "为空，准备用InternetCheckConnection检测网络，如果网络正常则调用函数flushWallPaper下载图片并更新桌面", False
                 If InternetCheckConnection("http://cn.bing.com/", &H1, 0&) <> 0 Then
                     writeToFile "运行日志.txt", Now & vbTab & "网络正常，开始调用函数flushWallPaper", False
-                    Call flushWallPaper
+                    If isHasUpdated Then
+                        Exit Sub
+'                        Shell "bingwallpaper.exe"
+'                        Shell "restart_pro.bat", 0
+                    Else
+                        Call flushWallPaper
+                        Exit Sub '更新完成就退出
+                        isHasUpdated = True
+                    End If
                     writeToFile "运行日志.txt", Now & vbTab & "图片下载完毕并保存到" & strWallPaperLocal & "，已经更新桌面壁纸", False
                 End If
+            Else
+                Exit Sub '如果本地文件中已经存在就退出
             End If
-            Sleep 20000 '延时5秒检测一次
+            Wait 20000 '延时5秒检测一次
 '            writeToFile "运行日志.txt", Now & vbTab & "循环检测一次", False
         Loop
     End If
@@ -103,4 +115,12 @@ Public Function writeToFile(ByVal strFileName$, ByVal strContent$, Optional isCo
     Exit Function
 Err1:
     writeToFile = False
+End Function
+'延时，单位为毫秒
+Public Function Wait(ByVal MilliSeconds As Long)
+    Dim dSavetime As Double
+    dSavetime = timeGetTime + MilliSeconds   '记下开始时的时间
+    While timeGetTime < dSavetime '循环等待
+        DoEvents '转让控制权，以便让操作系统处理其它的事件
+    Wend
 End Function
